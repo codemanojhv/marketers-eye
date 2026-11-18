@@ -1,0 +1,64 @@
+{
+  "name": "marketers-eye",
+  "version": "0.1.0",
+  "description": "An evidence-backed marketing intelligence dashboard for channel signals, content, and competitor research.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "marketers-eye": "dist/cli.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "harness",
+    "skills",
+    "examples",
+    "web",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsx src/cli.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "eval": "tsx evals/run.ts",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
+  },
+  "keywords": [
+    "marketing",
+    "marketing-research",
+    "growth",
+    "competitor-analysis",
+    "ad-library",
+    "seo",
+    "mcp",
+    "mcp-server",
+    "agents",
+    "claude-code",
+    "codex"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/codemanojhv/marketers-eye.git"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.135.0",
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "node-html-parser": "^9.0.4",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  }
+}

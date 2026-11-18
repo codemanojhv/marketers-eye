@@ -1,0 +1,15 @@
+node_modules/
+dist/
+marketers-eye-reports/
+.env
+.env.local
+*.log
+.DS_Store
+
+# promo video project (rendered mp4 is copied to docs/)
+promo/
+
+# Local browser profile, demo cache, and design notes
+.cursor/
+runtime/
+cook/
