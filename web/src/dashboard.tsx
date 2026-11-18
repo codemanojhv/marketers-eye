@@ -1,4 +1,4 @@
-import { ArrowUpRight, BarChart3, CircleHelp, FileSearch, Layers3 } from "lucide-react";
+import { ArrowUpRight, BarChart3 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -200,23 +200,23 @@ export function Dashboard({ bundle }: { bundle: DashboardBundle }) {
     return counts;
   }, {})).sort((a, b) => b[1] - a[1]).slice(0, 7).map(([platform, items]) => ({ label: displayName(platform, platformNames), items }));
   const stats = [
-    { label: "Evidence records", value: bundle.evidence.length, caption: "observations + derivations", icon: FileSearch },
-    { label: "Channels assessed", value: `${assessed} / ${bundle.scorecard.length}`, caption: "checked in this run", icon: BarChart3 },
-    { label: "Content found", value: bundle.content.length, caption: "posts, videos, ads, threads", icon: Layers3 },
-    { label: "Unknown channels", value: unknownChannels, caption: "worth a manual check", icon: CircleHelp },
+    { label: "Evidence records", value: bundle.evidence.length, caption: "observations + derivations" },
+    { label: "Channels assessed", value: `${assessed} / ${bundle.scorecard.length}`, caption: "checked in this run" },
+    { label: "Content found", value: bundle.content.length, caption: "posts, videos, ads, threads" },
+    { label: "Unknown channels", value: unknownChannels, caption: "worth a manual check" },
   ];
   const host = bundle.target.domain || bundle.target.input;
 
   return <div className="me-dashboard">
     <header className="me-dashboard-head">
-      <div><p className="me-overline">MARKETING SNAPSHOT</p><h1>{bundle.brand}</h1><p className="me-dashboard-subtitle">{host}<span>·</span>Collected {new Date(bundle.generatedAt).toLocaleDateString()}</p></div>
+      <div><h1>{bundle.brand}</h1><p className="me-dashboard-subtitle">{host}<span>·</span>Collected {new Date(bundle.generatedAt).toLocaleDateString()}</p></div>
       <div className="me-head-mark" aria-hidden="true"><BarChart3 size={19} /><span>Evidence-led view</span></div>
     </header>
-    <section className="me-stats" aria-label="Run summary">
-      {stats.map(({ label, value, caption, icon: Icon }) => <Card className="me-stat-card" key={label}>
-        <CardContent className="me-stat-content"><div className="me-stat-copy"><span>{label}</span><strong>{value}</strong><small>{caption}</small></div><span className="me-stat-icon"><Icon size={19} aria-hidden="true" /></span></CardContent>
-      </Card>)}
-    </section>
+    <dl className="me-stats" aria-label="Run summary">
+      {stats.map(({ label, value, caption }) => <div className="me-stat" key={label}>
+        <dt>{label}</dt><dd>{value}<small>{caption}</small></dd>
+      </div>)}
+    </dl>
     <section className="me-charts" aria-label="Marketing evidence visualizations">
       <SignalChart bundle={bundle} />
       <CountChart title="Evidence by source" description={`Collected records; top ${sources.length} sources shown.`} config={sourceConfig} rows={sources} valueKey="records" total={bundle.evidence.length} empty="No evidence records were collected." />
