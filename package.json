@@ -19,18 +19,20 @@
     "examples",
     "web",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "web-dist"
   ],
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "dev": "tsx src/cli.ts",
-    "typecheck": "tsc --noEmit",
+    "build": "npm run build:web && tsc -p tsconfig.build.json",
+    "dev": "npm run build:web && tsx src/cli.ts",
+    "typecheck": "tsc --noEmit && tsc -p web/tsconfig.json",
     "test": "vitest run",
     "eval": "tsx evals/run.ts",
-    "prepublishOnly": "npm run typecheck && npm test && npm run build"
+    "prepublishOnly": "npm run typecheck && npm test && npm run build",
+    "build:web": "vite build"
   },
   "keywords": [
     "marketing",
@@ -56,9 +58,22 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.3.5",
     "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "class-variance-authority": "^0.7.1",
+    "cn": "^0.5.2",
+    "lucide-react": "^1.75.0",
+    "radix-ui": "^1.8.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "recharts": "^3.8.0",
+    "tailwindcss": "^4.3.5",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
+    "vite": "^8.3.8",
     "vitest": "^5.0.5"
   }
 }

@@ -1,14 +1,16 @@
 // Local web app: `marketers-eye web`. Binds to 127.0.0.1 only and rejects foreign
 // Host/Origin headers, because it can spawn the user's Claude Code / Codex.
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { extname, join } from "node:path";
 import { readConfig, writeConfig } from "../config.js";
 import { detectEngines, listTextModels, writeReport, type ApiEngineId, type EngineId } from "../engines.js";
 import { AREAS, analyzeMarketing, VERSION, type Area, type EvidenceBundle } from "../index.js";
 import { renderMarkdown } from "../report/markdown.js";
 import { validateReport } from "../report/validate.js";
 import { listRuns, loadReport, loadRun, saveReport, saveRun } from "../runs.js";
-import { PAGE } from "./page.js";
+import { PAGE, WEB_ASSET_DIR } from "./page.js";
 
 type Event = { type: string; [k: string]: unknown };
 
@@ -130,6 +132,17 @@ export function startWeb(port: number): Promise<string> {
           "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src * data: blob:; media-src *; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
         });
         return res.end(PAGE);
+      }
+      const asset = req.method === "GET" ? path.match(/^\/assets\/([A-Za-z0-9][A-Za-z0-9._-]*)$/) : null;
+      if (asset) {
+        const contentType: Record<string, string> = { ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".svg": "image/svg+xml", ".woff2": "font/woff2" };
+        try {
+          const body = await readFile(join(WEB_ASSET_DIR, asset[1]!));
+          res.writeHead(200, { "content-type": contentType[extname(asset[1]!).toLowerCase()] ?? "application/octet-stream", "cache-control": "public, max-age=31536000, immutable", "x-content-type-options": "nosniff" });
+          return res.end(body);
+        } catch {
+          return json(res, 404, { error: "not found" });
+        }
       }
       if (req.method === "GET" && path === "/api/status") {
         const cfg = readConfig();

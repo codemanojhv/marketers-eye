@@ -13,3 +13,5 @@ promo/
 .cursor/
 runtime/
 cook/
+
+web-dist/

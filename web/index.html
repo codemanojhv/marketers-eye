@@ -9,7 +9,9 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+<style>@layer theme, base, legacy, components, utilities;</style>
 <style>
+@layer legacy {
 :root {
   --bg: #f3f6f4;
   --surface: #ffffff;
@@ -381,6 +383,7 @@ button.bar-row:hover .bar-label { color: var(--accent); }
   .evidence-row { grid-template-columns: 42px minmax(0, 1fr); }
   .evidence-row a { grid-column: 2; }
 }
+}
 </style>
 </head>
 <body>
@@ -465,13 +468,7 @@ button.bar-row:hover .bar-label { color: var(--accent); }
     <div class="log" id="log" hidden></div>
     <article class="report" id="report" hidden></article>
     <section class="overview" id="overviewView" hidden>
-      <div class="view-head"><p class="eyebrow">COMPANY SNAPSHOT</p><h1 id="overviewTitle"></h1><p id="overviewSummary">Signals collected from public pages and sources. Open a bar or citation to inspect the evidence.</p></div>
-      <div class="kpi-grid" id="kpis"></div>
-      <div class="chart-grid">
-        <article class="card chart-card"><h2 class="chart-head">Channel signals</h2><p class="chart-note">Heuristic signal strength · 0–3. Evidence volume is not performance.</p><div class="chart-list" id="channelChart"></div></article>
-        <article class="card chart-card"><h2 class="chart-head">Evidence by source</h2><p class="chart-note">Collected observations and derivations, grouped by source.</p><div class="chart-list" id="sourceChart"></div></article>
-      </div>
-      <article class="card unknown-card"><h2 class="chart-head">What we could not verify</h2><p class="chart-note">Unknown means the collector could not confirm the channel. It does not mean the company is inactive.</p><ul class="unknown-list" id="unknownList"></ul></article>
+      <div id="overviewDashboard"></div>
     </section>
     <section id="channelsView" hidden><div class="view-head"><p class="eyebrow">CHANNEL BREAKDOWN</p><h1>Marketing channels</h1><p>Signal strength is a heuristic summary of the collected evidence. Select a channel to see its sources.</p></div><div class="channel-grid" id="channelCards"></div></section>
     <section id="evidenceView" hidden><div class="view-head"><p class="eyebrow">SOURCE LIBRARY</p><h1>Evidence</h1><p>Every observation links back to its source when one is available.</p></div><div class="evidence-list" id="evidenceList"></div></section>
@@ -715,33 +712,8 @@ function setTab(t) {
 function renderOverview() {
   const b = state?.bundle;
   if (!b) return;
-  $("#overviewTitle").textContent = b.brand + " marketing snapshot";
-  $("#overviewSummary").textContent = (b.target.domain || b.target.input) + " · collected " + new Date(b.generatedAt).toLocaleDateString();
-  const checked = b.scorecard.filter(c => c.status !== "unknown").length;
-  const stats = [["Evidence records", b.evidence.length], ["Channels assessed", checked + " / " + b.scorecard.length], ["Unknowns", b.unknowns.length], ["Posts & ads", (b.content || []).length]];
-  $("#kpis").innerHTML = stats.map(s => '<article class="metric"><span>' + esc(s[0]) + '</span><strong>' + esc(s[1]) + '</strong></article>').join("");
-
-  const channels = [...b.scorecard].filter(c => c.status !== "unknown").sort((a, z) => z.strength - a.strength).slice(0, 8);
-  $("#channelChart").innerHTML = channels.length ? channels.map(c => {
-    const width = Math.max(0, Math.min(3, Number(c.strength) || 0)) * 100 / 3;
-    return '<button class="bar-row" data-ids="' + esc(c.evidence.join(",")) + '" title="Open supporting evidence">' +
-      '<span class="bar-info"><span class="bar-label">' + esc(LABELS[c.channel] || c.channel) + '</span><span class="status-tag ' + esc(c.status) + '">' + esc(c.status) + '</span></span>' +
-      '<span class="track"><i style="width:' + width + '%"></i></span><span class="bar-value">' + esc(c.strength) + ' / 3</span></button>';
-  }).join("") : '<div class="empty-note">No channel signals were confirmed in this run.</div>';
-
-  const sources = Object.entries(b.evidence.reduce((counts, e) => {
-    counts[e.source] = (counts[e.source] || 0) + 1;
-    return counts;
-  }, {})).sort((a, z) => z[1] - a[1]).slice(0, 8);
-  const max = Math.max(1, ...sources.map(s => s[1]));
-  $("#sourceChart").innerHTML = sources.length ? sources.map(s =>
-    '<div class="bar-row"><span class="bar-label" title="' + esc(s[0]) + '">' + esc(s[0]) + '</span><span class="track source"><i style="width:' + (s[1] * 100 / max) + '%"></i></span><span class="bar-value">' + esc(s[1]) + '</span></div>'
-  ).join("") : '<div class="empty-note">No evidence records were collected.</div>';
-
-  const unknowns = (b.unknowns || []).slice(0, 8);
-  $("#unknownList").innerHTML = unknowns.length ? unknowns.map(u =>
-    '<li><strong>' + esc(LABELS[u.channel] || u.channel) + ':</strong> ' + esc(u.reason) + (u.manualCheck ? ' · <a href="' + esc(safeUrl(u.manualCheck)) + '" target="_blank" rel="noreferrer">check source ↗</a>' : '') + '</li>'
-  ).join("") : '<li>No open unknowns were recorded.</li>';
+  window.marketersEyeBundle = b;
+  window.marketersEyeRenderOverview?.(b);
 }
 
 function renderChannels() {
@@ -763,10 +735,6 @@ function renderEvidence() {
   ).join("") : '<div class="empty-note">No evidence records were collected.</div>';
 }
 
-$("#channelChart").addEventListener("click", e => {
-  const row = e.target.closest("[data-ids]");
-  if (row?.dataset.ids) openEvidence(row.dataset.ids.split(","));
-});
 $("#channelCards").addEventListener("click", e => {
   const cite = e.target.closest("[data-ids]");
   if (cite?.dataset.ids) openEvidence(cite.dataset.ids.split(","));
@@ -914,6 +882,7 @@ function openEvidence(ids) {
   $("#dBody").textContent = items.map(e => (items.length > 1 ? `${e.id} · ${e.title}\n` : "") + JSON.stringify(e.data, null, 2)).join("\n\n");
   $("#drawer").classList.add("open"); $("#scrim").classList.add("open"); $("#drawer").setAttribute("aria-hidden", "false");
 }
+window.marketersEyeOpenEvidence = ids => openEvidence(ids);
 function closeDrawer() { $("#drawer").classList.remove("open"); $("#scrim").classList.remove("open"); $("#drawer").setAttribute("aria-hidden", "true"); }
 $("#dClose").addEventListener("click", closeDrawer);
 $("#scrim").addEventListener("click", closeDrawer);
@@ -1062,5 +1031,6 @@ function route() {
 window.addEventListener("hashchange", route);
 refreshStatus().then(route).catch(err => { document.body.innerHTML = `<p style="padding:24px">Could not reach Marketer's Eye: ${esc(err.message)}</p>`; });
 </script>
+<script type="module" src="/src/main.tsx"></script>
 </body>
 </html>
