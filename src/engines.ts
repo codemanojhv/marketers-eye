@@ -6,11 +6,12 @@ import { mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
+import Anthropic from "@anthropic-ai/sdk";
 import { synthesize, userPrompt } from "./analyze/synthesize.js";
 import { loadHarness, systemPrompt } from "./harness.js";
 import type { EvidenceBundle } from "./index.js";
 
-export type ApiEngineId = "gemini" | "openai" | "deepseek";
+export type ApiEngineId = "anthropic-api" | "gemini" | "openai" | "deepseek";
 export type EngineId = "claude-code" | "codex" | "anthropic-api" | ApiEngineId | "none";
 
 export interface EngineInfo {
@@ -34,8 +35,8 @@ export async function detectEngines(): Promise<EngineInfo[]> {
   ];
 }
 
-const API_KEY: Record<ApiEngineId, string> = { gemini: "GEMINI_API_KEY", openai: "OPENAI_API_KEY", deepseek: "DEEPSEEK_API_KEY" };
-const apiLabel: Record<ApiEngineId, string> = { gemini: "Gemini", openai: "OpenAI", deepseek: "DeepSeek" };
+const API_KEY: Record<ApiEngineId, string> = { "anthropic-api": "ANTHROPIC_API_KEY", gemini: "GEMINI_API_KEY", openai: "OPENAI_API_KEY", deepseek: "DEEPSEEK_API_KEY" };
+const apiLabel: Record<ApiEngineId, string> = { "anthropic-api": "Anthropic", gemini: "Gemini", openai: "OpenAI", deepseek: "DeepSeek" };
 
 /** Keep only models that can write text reports, using each provider's model-list response. */
 export function textModelIds(engine: ApiEngineId, payload: unknown): string[] {
@@ -57,7 +58,7 @@ export function textModelIds(engine: ApiEngineId, payload: unknown): string[] {
 }
 
 function keyFor(engine: ApiEngineId): string {
-  const key = process.env[API_KEY[engine]];
+  const key = process.env[API_KEY[engine]] || (engine === "anthropic-api" ? process.env.ANTHROPIC_AUTH_TOKEN : undefined);
   if (!key) throw new Error("Add an API key under API keys to use " + apiLabel[engine] + ".");
   return key;
 }
@@ -79,6 +80,15 @@ async function requestJson(engine: ApiEngineId, url: string, body?: unknown, sig
 }
 
 export async function listTextModels(engine: ApiEngineId): Promise<string[]> {
+  if (engine === "anthropic-api") {
+    const models: string[] = [];
+    keyFor(engine);
+    const client = process.env.ANTHROPIC_API_KEY
+      ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, authToken: null })
+      : new Anthropic();
+    for await (const model of client.models.list({ lifecycle: ["active"] })) models.push(model.id);
+    return [...new Set(models)];
+  }
   if (engine === "deepseek") return textModelIds(engine, await requestJson(engine, "https://api.deepseek.com/models"));
   if (engine === "openai") {
     const result = await requestJson(engine, "https://api.openai.com/v1/models");

@@ -605,7 +605,8 @@ function renderEngines() {
     </button>`).join("");
 }
 
-const apiEngines = new Set(["gemini", "openai", "deepseek"]);
+const apiEngines = new Set(["anthropic-api", "gemini", "openai", "deepseek"]);
+const apiEngineLabels = { "anthropic-api": "Anthropic", gemini: "Gemini", openai: "OpenAI", deepseek: "DeepSeek" };
 async function loadModels() {
   const picker = $("#modelPicker");
   picker.hidden = !apiEngines.has(engine);
@@ -613,6 +614,9 @@ async function loadModels() {
   if (picker.hidden) return;
   const selectedEngine = engine;
   const select = $("#modelSelect");
+  const label = apiEngineLabels[selectedEngine] + " model";
+  $("#modelPicker label").textContent = label;
+  select.setAttribute("aria-label", label);
   select.disabled = true;
   select.innerHTML = "<option>Loading models…</option>";
   $("#modelHint").textContent = "Loading text models from your provider account.";

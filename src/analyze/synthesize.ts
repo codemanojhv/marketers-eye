@@ -16,7 +16,9 @@ export interface SynthesisResult {
  */
 export async function synthesize(bundle: EvidenceBundle, opts: { model?: string; onText?: (delta: string) => void } = {}): Promise<SynthesisResult> {
   const harness = loadHarness();
-  const client = new Anthropic();
+  const client = process.env.ANTHROPIC_API_KEY
+    ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, authToken: null })
+    : new Anthropic();
   const model = opts.model ?? process.env.MARKETERS_EYE_MODEL ?? DEFAULT_MODEL;
 
   const stream = client.beta.messages.stream({

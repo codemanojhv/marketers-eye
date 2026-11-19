@@ -160,7 +160,7 @@ export function startWeb(port: number): Promise<string> {
           areas: AREAS,
         });
       }
-      const modelList = path.match(/^\/api\/models\/(gemini|openai|deepseek)$/);
+      const modelList = path.match(/^\/api\/models\/(anthropic-api|gemini|openai|deepseek)$/);
       if (req.method === "GET" && modelList) return json(res, 200, { models: await listTextModels(modelList[1] as ApiEngineId) });
       if (req.method === "POST" && path === "/api/settings") {
         const body = await readBody(req);
