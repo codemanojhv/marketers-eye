@@ -38,18 +38,77 @@ Paste a Scrape Creators API key in the app when you want ad-library and social c
 
 The MCP server uses stdio and exposes marketing analysis, evidence and content lookup, analysis playbooks, report validation, report writing, comparisons, and guided workflows.
 
-Run it directly from this checkout:
+### Install it in an AI client
+
+From the repository root, build the app once:
+
+    npm install
+    npm run build
+
+The MCP server runs locally on your computer. It does not need a hosted URL. The client starts it with Node.js whenever it needs the tools.
+It reads this checkout's `.env` when it starts; keep provider keys there instead of putting them in the client configuration.
+
+To run it directly while developing:
 
     npm run dev -- mcp
 
-To register the built server with detected Claude Code or Codex clients, run:
+#### Codex ([MCP docs](https://developers.openai.com/learn/docs-mcp))
 
-    npm run build
+Codex CLI and its supported editor integrations share the MCP configuration. In PowerShell, run this from the repository folder:
+
+    $server = Join-Path (Get-Location) "dist/cli.js"
+    codex mcp add marketers-eye -- node $server mcp
+    codex mcp list
+
+On macOS or Linux, use `codex mcp add marketers-eye -- node "$(pwd)/dist/cli.js" mcp`. Restart Codex after adding the server.
+
+#### Antigravity ([MCP docs](https://antigravity.google/docs/ide-mcp))
+
+Open **Settings → Customizations → MCP Servers → Manage MCP Servers → View raw config**. Add this entry to the `mcpServers` object in the global config (`~/.gemini/config/mcp_config.json`) or the workspace config (`.agents/mcp_config.json`):
+
+    {
+      "mcpServers": {
+        "marketers-eye": {
+          "command": "node",
+          "args": ["C:/path/to/marketers-eye/dist/cli.js", "mcp"]
+        }
+      }
+    }
+
+Replace the example path with the absolute path to this checkout's `dist/cli.js`. Save the file, then refresh the MCP server list or restart Antigravity. In Antigravity CLI, `/mcp` opens the server manager.
+
+#### Claude Code ([MCP docs](https://docs.anthropic.com/en/docs/mcp))
+
+Register it for all projects:
+
+    claude mcp add --scope user marketers-eye -- node "C:/path/to/marketers-eye/dist/cli.js" mcp
+
+Use the absolute path to your `dist/cli.js`, then run `claude mcp list` or `/mcp` to confirm it is connected.
+
+#### Gemini CLI ([MCP docs](https://github.com/google-gemini/gemini-cli/blob/main/docs/tools/mcp-server.md))
+
+Register a user-level server (replace the path with the absolute path to your checkout):
+
+    gemini mcp add -s user marketers-eye node C:/path/to/marketers-eye/dist/cli.js mcp
+
+Check it with `gemini mcp list`, then restart Gemini CLI.
+
+#### Cursor ([MCP docs](https://docs.cursor.com/context/model-context-protocol)) and other MCP clients
+
+In Cursor, open **Settings → Tools & MCP** and add a local stdio server, or place the same JSON entry under `mcpServers` in `.cursor/mcp.json` (project-level) or `~/.cursor/mcp.json` (user-level). The Antigravity JSON example above also works in clients that accept standard local stdio MCP entries; use that client's config file and an absolute path to `dist/cli.js`. These steps are for clients that can launch local stdio servers. ChatGPT web and other remote-only clients need an HTTP MCP endpoint or a secure bridge; this repository currently provides stdio only.
+
+The project also includes a setup command that can register the built server with detected Claude Code and Codex clients. Preview the plan first, then run it to apply:
+
+    node dist/cli.js setup --dry-run
     node dist/cli.js setup
 
-Setup shows the changes and asks before applying them. Preview the plan with node dist/cli.js setup --dry-run.
+Setup asks before changing client configuration. It does not configure Antigravity, Gemini CLI, Cursor, or other clients; use their manual steps above.
+
+Once connected, restart or refresh the client and ask it to analyze a company, for example: `Analyze marketing at linear.app`.
 
 The MCP tools include analyze_marketing, get_evidence, get_content, get_playbook, validate_report, write_report, and compare_runs. The connected MCP client's model can write a report from collected evidence; server-side report writing is optional.
+
+To disconnect, use `codex mcp remove marketers-eye`, `claude mcp remove marketers-eye`, or `gemini mcp remove marketers-eye`; for manual JSON configurations, remove the `marketers-eye` entry.
 
 ## Reading the dashboard
 
