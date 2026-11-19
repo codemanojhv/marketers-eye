@@ -26,10 +26,10 @@ export async function detectEngines(): Promise<EngineInfo[]> {
   return [
     { id: "claude-code", label: "Claude Code", available: Boolean(claude), detail: claude ? `${claude} · uses your Claude subscription` : "not installed (npm i -g @anthropic-ai/claude-code)" },
     { id: "codex", label: "Codex", available: Boolean(codex), detail: codex ? `${codex} · uses your ChatGPT subscription` : "not installed (npm i -g @openai/codex)" },
-    { id: "anthropic-api", label: "Anthropic API", available: api, detail: api ? "ANTHROPIC_API_KEY · billed per token" : "set ANTHROPIC_API_KEY" },
-    { id: "gemini", label: "Gemini API", available: Boolean(process.env.GEMINI_API_KEY), detail: process.env.GEMINI_API_KEY ? "API key configured · billed by Google" : "add GEMINI_API_KEY to .env" },
-    { id: "openai", label: "OpenAI API", available: Boolean(process.env.OPENAI_API_KEY), detail: process.env.OPENAI_API_KEY ? "API key configured · billed by OpenAI" : "add OPENAI_API_KEY to .env" },
-    { id: "deepseek", label: "DeepSeek API", available: Boolean(process.env.DEEPSEEK_API_KEY), detail: process.env.DEEPSEEK_API_KEY ? "API key configured · billed by DeepSeek" : "add DEEPSEEK_API_KEY to .env" },
+    { id: "anthropic-api", label: "Anthropic API", available: api, detail: api ? "API key configured · billed per token" : "add a key under API keys" },
+    { id: "gemini", label: "Gemini API", available: Boolean(process.env.GEMINI_API_KEY), detail: process.env.GEMINI_API_KEY ? "API key configured · billed by Google" : "add a key under API keys" },
+    { id: "openai", label: "OpenAI API", available: Boolean(process.env.OPENAI_API_KEY), detail: process.env.OPENAI_API_KEY ? "API key configured · billed by OpenAI" : "add a key under API keys" },
+    { id: "deepseek", label: "DeepSeek API", available: Boolean(process.env.DEEPSEEK_API_KEY), detail: process.env.DEEPSEEK_API_KEY ? "API key configured · billed by DeepSeek" : "add a key under API keys" },
     { id: "none", label: "Evidence only", available: true, detail: "no AI, raw evidence report" },
   ];
 }
@@ -58,7 +58,7 @@ export function textModelIds(engine: ApiEngineId, payload: unknown): string[] {
 
 function keyFor(engine: ApiEngineId): string {
   const key = process.env[API_KEY[engine]];
-  if (!key) throw new Error("Set " + API_KEY[engine] + " in .env, then restart Marketer's Eye.");
+  if (!key) throw new Error("Add an API key under API keys to use " + apiLabel[engine] + ".");
   return key;
 }
 

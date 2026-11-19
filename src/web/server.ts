@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { extname, join } from "node:path";
-import { readConfig, writeConfig } from "../config.js";
+import { readConfig, writeConfig, type ApiKeyProvider, type UserConfig } from "../config.js";
 import { detectEngines, listTextModels, writeReport, type ApiEngineId, type EngineId } from "../engines.js";
 import { AREAS, analyzeMarketing, VERSION, type Area, type EvidenceBundle } from "../index.js";
 import { renderMarkdown } from "../report/markdown.js";
@@ -24,6 +24,7 @@ interface Job {
 }
 
 const jobs = new Map<string, Job>();
+const API_KEY_PROVIDERS: ApiKeyProvider[] = ["anthropic", "gemini", "openai", "deepseek"];
 
 function emit(job: Job, e: Event): void {
   job.events.push(e);
@@ -150,6 +151,12 @@ export function startWeb(port: number): Promise<string> {
           version: VERSION,
           engines: await detectEngines(),
           scrapecreators: { set: Boolean(process.env.SCRAPECREATORS_API_KEY || process.env.SCRAPE_CREATORS_API_KEY), fromConfig: Boolean(cfg.scrapecreatorsKey) },
+          apiKeys: {
+            anthropic: { set: Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN || cfg.apiKeys?.anthropic), fromConfig: Boolean(cfg.apiKeys?.anthropic) },
+            gemini: { set: Boolean(process.env.GEMINI_API_KEY || cfg.apiKeys?.gemini), fromConfig: Boolean(cfg.apiKeys?.gemini) },
+            openai: { set: Boolean(process.env.OPENAI_API_KEY || cfg.apiKeys?.openai), fromConfig: Boolean(cfg.apiKeys?.openai) },
+            deepseek: { set: Boolean(process.env.DEEPSEEK_API_KEY || cfg.apiKeys?.deepseek), fromConfig: Boolean(cfg.apiKeys?.deepseek) },
+          },
           areas: AREAS,
         });
       }
@@ -157,7 +164,29 @@ export function startWeb(port: number): Promise<string> {
       if (req.method === "GET" && modelList) return json(res, 200, { models: await listTextModels(modelList[1] as ApiEngineId) });
       if (req.method === "POST" && path === "/api/settings") {
         const body = await readBody(req);
-        if (typeof body.scrapecreatorsKey === "string") writeConfig({ scrapecreatorsKey: body.scrapecreatorsKey.trim() });
+        const patch: UserConfig = {};
+        if (body.removeScrapeCreatorsKey === true) patch.scrapecreatorsKey = "";
+        else if (typeof body.scrapecreatorsKey === "string") {
+          if (body.scrapecreatorsKey.length > 4096) return json(res, 400, { error: "Scrape Creators key is too long" });
+          patch.scrapecreatorsKey = body.scrapecreatorsKey.trim();
+        }
+        const config = readConfig();
+        const apiKeys = { ...(config.apiKeys ?? {}) };
+        if (body.apiKeys !== undefined) {
+          if (!body.apiKeys || typeof body.apiKeys !== "object" || Array.isArray(body.apiKeys)) return json(res, 400, { error: "apiKeys must be an object" });
+          for (const [provider, value] of Object.entries(body.apiKeys)) {
+            if (!API_KEY_PROVIDERS.includes(provider as ApiKeyProvider)) return json(res, 400, { error: "Unknown API key provider" });
+            if (typeof value !== "string" || value.length > 4096) return json(res, 400, { error: "API keys must be strings no longer than 4096 characters" });
+            if (value.trim()) apiKeys[provider as ApiKeyProvider] = value.trim();
+          }
+        }
+        if (body.removeApiKeys !== undefined) {
+          if (!Array.isArray(body.removeApiKeys) || body.removeApiKeys.some((provider: unknown) => typeof provider !== "string" || !API_KEY_PROVIDERS.includes(provider as ApiKeyProvider))) return json(res, 400, { error: "removeApiKeys must contain supported providers" });
+          for (const provider of body.removeApiKeys as ApiKeyProvider[]) delete apiKeys[provider];
+        }
+        if (body.apiKeys !== undefined || body.removeApiKeys !== undefined) patch.apiKeys = Object.keys(apiKeys).length ? apiKeys : undefined;
+        if (!Object.keys(patch).length) return json(res, 400, { error: "No settings were provided" });
+        writeConfig(patch);
         return json(res, 200, { ok: true });
       }
       if (req.method === "GET" && path === "/api/runs") return json(res, 200, await listRuns());

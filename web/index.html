@@ -268,13 +268,31 @@ h1 { font-size: clamp(32px, 6vw, 52px); line-height: 1.04; letter-spacing: -.03e
 .x { margin-left: auto; width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--border); background: transparent; cursor: pointer; flex: none; }
 
 /* Modal */
-dialog { border: 1px solid var(--border); border-radius: 16px; background: var(--surface); color: var(--text); padding: 22px; width: min(460px, calc(100vw - 32px)); box-shadow: var(--shadow); }
+dialog { border: 1px solid var(--border); border-radius: 16px; background: var(--surface); color: var(--text); padding: 22px; width: min(680px, calc(100vw - 32px)); max-height: min(88vh, 780px); overflow: auto; box-shadow: var(--shadow); }
 dialog::backdrop { background: rgba(0,0,0,.3); }
 dialog h3 { margin: 0 0 6px; }
 dialog p { margin: 0 0 16px; color: var(--text-muted); font-size: 14px; }
 .field { width: 100%; height: 40px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); padding: 0 12px; outline: none; }
 .field:focus { border-color: var(--accent); }
 .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+.key-section { border-top: 1px solid var(--border); padding-top: 16px; margin-top: 16px; }
+.key-section-head, .provider-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.key-section h4 { margin: 0; font-size: 14px; }
+.key-section-head p { margin: 3px 0 0; font-size: 12px; }
+.key-state { color: var(--text-muted); font-size: 12px; white-space: nowrap; }
+.key-state.on { color: var(--accent); }
+.key-entry { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+.key-entry .field { min-width: 0; }
+.provider-keys { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+.provider-key { min-width: 0; }
+.provider-title { min-height: 20px; margin-bottom: 7px; }
+.provider-title label { font-size: 13px; font-weight: 600; }
+.provider-key .field { height: 38px; }
+.remove-key { display: flex; align-items: center; gap: 7px; margin-top: 8px; color: var(--text-muted); font-size: 12px; }
+.remove-key[hidden] { display: none; }
+.remove-key input { accent-color: var(--accent); }
+.key-error { margin-top: 12px !important; color: var(--err) !important; }
+@media (max-width: 520px) { .provider-keys { grid-template-columns: 1fr; } .key-entry { align-items: stretch; flex-direction: column; } }
 
 .toast { position: fixed; bottom: 20px; left: 50%; transform: translate(-50%, 20px); opacity: 0; background: var(--text); color: var(--bg); padding: 8px 14px; border-radius: 10px; font-size: 13px; transition: all .2s var(--ease); z-index: 60; pointer-events: none; }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
@@ -389,7 +407,7 @@ button.bar-row:hover .bar-label { color: var(--accent); }
       <option value="midnight">Midnight</option>
     </select>
   </label>
-  <button class="pill" id="keyPill" aria-label="Scrape Creators API key" title="Paste a Scrape Creators key for ad and social sources"><span class="dot" id="keyDot"></span><span id="keyLabel">Add data key</span></button>
+  <button class="pill" id="keyPill" aria-label="Manage API keys" title="Configure provider API keys"><span class="dot" id="keyDot"></span><span id="keyLabel">API keys</span></button>
   <a class="pill github-control" href="https://github.com/codemanojhv/marketers-eye" target="_blank" rel="noreferrer">GitHub</a>
 </header>
 
@@ -411,8 +429,8 @@ button.bar-row:hover .bar-label { color: var(--accent); }
   </div>
 
   <div class="banner" id="keyBanner" hidden>
-    <span>Add a Scrape Creators key when you want to collect ad library and social evidence. Other public sources work without it.</span>
-    <button class="btn small ghost" data-open-key>Add key</button>
+    <span>Add a Scrape Creators key to include ad library and social evidence. Other public sources work without it.</span>
+    <button class="btn small ghost" data-open-key>Manage keys</button>
   </div>
 
   <div id="recentWrap" hidden>
@@ -485,14 +503,27 @@ button.bar-row:hover .bar-label { color: var(--accent); }
 </aside>
 
 <dialog id="keyDialog">
-  <form method="dialog" id="keyForm">
-    <h3>Scrape Creators API key</h3>
-    <p>Paste a key here when you want to collect ad library and social evidence. It is stored in this app's local configuration and used only by this computer.</p>
-    <input class="field mono" id="keyInput" type="password" placeholder="Paste API key" autocomplete="off">
+  <form id="keyForm">
+    <h3>API keys</h3>
+    <p>Keys are saved on this device, stay masked, and are sent only to their provider. Claude Code and Codex use your existing subscriptions and do not need API keys.</p>
+    <section class="key-section" style="margin-top:0;padding-top:0;border-top:0">
+      <div class="key-section-head"><div><h4>Scrape Creators</h4><p>Ad library and social evidence</p></div><span class="key-state" id="scrapeKeyState">Not configured</span></div>
+      <div class="key-entry"><input class="field mono" id="keyInput" type="password" placeholder="Paste API key" autocomplete="new-password" aria-label="Scrape Creators API key"><a class="btn small ghost" href="https://scrapecreators.com" target="_blank" rel="noreferrer">Get a key</a></div>
+      <label class="remove-key" id="removeScrapeWrap" hidden><input type="checkbox" id="removeScrapeKey">Remove saved key</label>
+    </section>
+    <section class="key-section">
+      <div class="key-section-head"><div><h4>AI providers</h4><p>Blank fields keep the saved key. Paste a new key to replace it.</p></div></div>
+      <div class="provider-keys">
+        <div class="provider-key" data-provider="anthropic"><div class="provider-title"><label for="aiKeyAnthropic">Anthropic</label><span class="key-state" id="anthropicKeyState">Not configured</span></div><input class="field mono" id="aiKeyAnthropic" type="password" placeholder="Paste API key" autocomplete="new-password"><label class="remove-key" id="removeAnthropicWrap" hidden><input type="checkbox" data-remove-key="anthropic">Remove saved key</label></div>
+        <div class="provider-key" data-provider="gemini"><div class="provider-title"><label for="aiKeyGemini">Gemini</label><span class="key-state" id="geminiKeyState">Not configured</span></div><input class="field mono" id="aiKeyGemini" type="password" placeholder="Paste API key" autocomplete="new-password"><label class="remove-key" id="removeGeminiWrap" hidden><input type="checkbox" data-remove-key="gemini">Remove saved key</label></div>
+        <div class="provider-key" data-provider="openai"><div class="provider-title"><label for="aiKeyOpenai">OpenAI</label><span class="key-state" id="openaiKeyState">Not configured</span></div><input class="field mono" id="aiKeyOpenai" type="password" placeholder="Paste API key" autocomplete="new-password"><label class="remove-key" id="removeOpenaiWrap" hidden><input type="checkbox" data-remove-key="openai">Remove saved key</label></div>
+        <div class="provider-key" data-provider="deepseek"><div class="provider-title"><label for="aiKeyDeepseek">DeepSeek</label><span class="key-state" id="deepseekKeyState">Not configured</span></div><input class="field mono" id="aiKeyDeepseek" type="password" placeholder="Paste API key" autocomplete="new-password"><label class="remove-key" id="removeDeepseekWrap" hidden><input type="checkbox" data-remove-key="deepseek">Remove saved key</label></div>
+      </div>
+    </section>
+    <p class="key-error" id="keyError" role="alert" hidden></p>
     <div class="row">
-      <a class="btn small ghost" href="https://scrapecreators.com" target="_blank" rel="noreferrer">Get a key</a>
-      <button class="btn small ghost" value="cancel" formnovalidate>Cancel</button>
-      <button class="btn small" id="keySave" value="save">Save</button>
+      <button class="btn small ghost" id="keyCancel" type="button">Cancel</button>
+      <button class="btn small" id="keySave" type="submit">Save</button>
     </div>
   </form>
 </dialog>
@@ -555,8 +586,9 @@ async function api(path, opts = {}) {
 async function refreshStatus() {
   status = await api("/api/status");
   const set = status.scrapecreators.set;
-  $("#keyDot").classList.toggle("on", set);
-  $("#keyLabel").textContent = set ? "Data key on" : "Add data key";
+  const anyKey = set || Object.values(status.apiKeys || {}).some(key => key.set);
+  $("#keyDot").classList.toggle("on", anyKey);
+  $("#keyLabel").textContent = "API keys";
   $("#keyBanner").hidden = set;
   renderEngines();
   loadModels();
@@ -1010,15 +1042,79 @@ $("#dlBtn").addEventListener("click", () => {
 });
 
 // ---- Key dialog -------------------------------------------------------------
-function openKey() { $("#keyInput").value = ""; $("#keyDialog").showModal(); setTimeout(() => $("#keyInput").focus(), 30); }
+const KEY_FIELDS = { anthropic: "#aiKeyAnthropic", gemini: "#aiKeyGemini", openai: "#aiKeyOpenai", deepseek: "#aiKeyDeepseek" };
+function keyStateText(value) { return value.fromConfig ? "Saved on this device" : value.set ? "Available from environment" : "Not configured"; }
+function paintKeyStatus() {
+  if (!status) return;
+  const scrape = status.scrapecreators;
+  $("#scrapeKeyState").textContent = keyStateText(scrape);
+  $("#scrapeKeyState").classList.toggle("on", scrape.set);
+  $("#removeScrapeWrap").hidden = !scrape.fromConfig;
+  for (const [provider] of Object.entries(KEY_FIELDS)) {
+    const value = status.apiKeys[provider];
+    const stateEl = $("#" + provider + "KeyState");
+    stateEl.textContent = keyStateText(value);
+    stateEl.classList.toggle("on", value.set);
+    $("#remove" + provider[0].toUpperCase() + provider.slice(1) + "Wrap").hidden = !value.fromConfig;
+  }
+}
+function openKey() {
+  $("#keyInput").value = "";
+  $("#keyInput").disabled = false;
+  $("#removeScrapeKey").checked = false;
+  for (const [provider, selector] of Object.entries(KEY_FIELDS)) {
+    $(selector).value = "";
+    $(selector).disabled = false;
+    $("[data-remove-key='" + provider + "']").checked = false;
+  }
+  $("#keyError").hidden = true;
+  $("#keyError").textContent = "";
+  paintKeyStatus();
+  $("#keyDialog").showModal();
+  setTimeout(() => $("#keyInput").focus(), 30);
+}
+$("#keyDialog").addEventListener("close", () => {
+  $("#keyInput").value = "";
+  for (const selector of Object.values(KEY_FIELDS)) $(selector).value = "";
+});
+$("#keyForm").addEventListener("submit", async event => {
+  event.preventDefault();
+  const body = {};
+  const scrapeKey = $("#keyInput").value.trim();
+  if (scrapeKey) body.scrapecreatorsKey = scrapeKey;
+  if ($("#removeScrapeKey").checked) body.removeScrapeCreatorsKey = true;
+  const apiKeys = Object.fromEntries(Object.entries(KEY_FIELDS).map(([provider, selector]) => [provider, $(selector).value.trim()]).filter(([, value]) => value));
+  const removeApiKeys = [...document.querySelectorAll("[data-remove-key]:checked")].map(input => input.dataset.removeKey);
+  if (Object.keys(apiKeys).length) body.apiKeys = apiKeys;
+  if (removeApiKeys.length) body.removeApiKeys = removeApiKeys;
+  if (!Object.keys(body).length) {
+    $("#keyError").textContent = "Enter a key or select a saved key to remove.";
+    $("#keyError").hidden = false;
+    return;
+  }
+  const save = $("#keySave");
+  save.disabled = true;
+  $("#keyError").hidden = true;
+  try {
+    await api("/api/settings", { method: "POST", body: JSON.stringify(body) });
+    await refreshStatus();
+    $("#keyDialog").close();
+    toast("API key settings saved");
+  } catch (error) {
+    $("#keyError").textContent = error.message || "Could not save API key settings.";
+    $("#keyError").hidden = false;
+  } finally {
+    save.disabled = false;
+  }
+});
+$("#keyCancel").addEventListener("click", () => $("#keyDialog").close());
+$("#keyDialog").addEventListener("change", event => {
+  const input = event.target.closest("[data-remove-key]");
+  if (input) $(KEY_FIELDS[input.dataset.removeKey]).disabled = input.checked;
+  if (event.target.id === "removeScrapeKey") $("#keyInput").disabled = event.target.checked;
+});
 $("#keyPill").addEventListener("click", openKey);
 document.querySelectorAll("[data-open-key]").forEach(b => b.addEventListener("click", openKey));
-$("#keyDialog").addEventListener("close", async () => {
-  if ($("#keyDialog").returnValue !== "save") return;
-  await api("/api/settings", { method: "POST", body: JSON.stringify({ scrapecreatorsKey: $("#keyInput").value }) });
-  await refreshStatus();
-  toast($("#keyInput").value ? "Key saved" : "Key removed");
-});
 
 // ---- Router -------------------------------------------------------------------
 function route() {
