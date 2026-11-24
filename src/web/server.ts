@@ -11,6 +11,7 @@ import { renderMarkdown } from "../report/markdown.js";
 import { validateReport } from "../report/validate.js";
 import { listRuns, loadReport, loadRun, saveReport, saveRun } from "../runs.js";
 import { PAGE, WEB_ASSET_DIR } from "./page.js";
+import { attachScan, createExperiment, createWorkspace, getWorkspace, listExperiments, listWorkspaceScans, listWorkspaces, updateExperiment, updateWorkspace } from "../workspaces.js";
 
 type Event = { type: string; [k: string]: unknown };
 
@@ -46,6 +47,7 @@ function bundleView(b: EvidenceBundle) {
     scorecard: b.scorecard,
     evidence: b.evidence,
     unknowns: b.unknowns,
+    sources: b.sources ?? [],
     credits: b.credits,
     harness: b.harness,
     generatedAt: b.generatedAt,
@@ -121,6 +123,35 @@ export function startWeb(port: number): Promise<string> {
 
       const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
       const path = url.pathname;
+
+      if (path === "/api/workspaces") {
+        if (req.method === "GET") return json(res, 200, listWorkspaces());
+        if (req.method === "POST") return json(res, 201, createWorkspace(await readBody(req)));
+      }
+      const workspace = path.match(/^\/api\/workspaces\/([a-f0-9-]+)(?:\/(scans|experiments)(?:\/([a-f0-9-]+))?)?$/);
+      if (workspace) {
+        const [, id, section, item] = workspace;
+        if (!id || !getWorkspace(id)) return json(res, 404, { error: "Workspace not found" });
+        if (!section && req.method === "GET") return json(res, 200, getWorkspace(id));
+        if (!section && req.method === "PUT") {
+          const body = await readBody(req);
+          return json(res, 200, updateWorkspace(id, body.revision, body.profile));
+        }
+        if (section === "scans" && req.method === "GET") return json(res, 200, listWorkspaceScans(id));
+        if (section === "scans" && req.method === "POST") {
+          const body = await readBody(req);
+          if (typeof body.runId !== "string" || !/^[A-Za-z0-9._-]+$/.test(body.runId)) return json(res, 400, { error: "Invalid run ID" });
+          attachScan(id, body.runId, await loadRun(body.runId));
+          return json(res, 201, { ok: true });
+        }
+        if (section === "experiments" && !item && req.method === "GET") return json(res, 200, listExperiments(id));
+        if (section === "experiments" && !item && req.method === "POST") return json(res, 201, { id: createExperiment(id, await readBody(req)) });
+        if (section === "experiments" && item && req.method === "PUT") {
+          const body = await readBody(req);
+          updateExperiment(id, item, body.revision, body.data);
+          return json(res, 200, { ok: true });
+        }
+      }
 
       if (req.method === "GET" && path === "/") {
         res.writeHead(200, {

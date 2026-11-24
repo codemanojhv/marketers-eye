@@ -6,7 +6,7 @@ An evidence-backed marketing intelligence dashboard. Enter a company website or 
 
 ## Quick start
 
-Requires Node.js 22 or newer.
+Requires Node.js 22.13 or newer.
 
     git clone https://github.com/codemanojhv/marketers-eye.git
     cd marketers-eye
@@ -17,6 +17,12 @@ Requires Node.js 22 or newer.
 Open http://localhost:4321. For a recorded example without provider keys:
 
     npm run dev -- demo --no-open
+
+## Brand workspaces
+
+Choose **Workspaces** in the dashboard to save a brand profile, attach existing scans, and keep an experiment record. Create a scan using **Quick scan** before attaching it to a workspace. Each attached scan includes a local copy of its evidence.
+
+Workspace records are stored in `~/.local/share/marketers-eye/workspace.sqlite`. Set `MARKETERS_EYE_DATA_DIR` before starting the app to choose another directory. Back up the database file to keep these records.
 
 ## Model providers
 

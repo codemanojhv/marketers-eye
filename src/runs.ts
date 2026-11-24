@@ -1,6 +1,7 @@
 // Saved runs (evidence bundle + optional report), shared by the MCP server and the web app.
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
+import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import type { EvidenceBundle } from "./index.js";
 
@@ -10,7 +11,7 @@ export const RUNS_DIR = join(DATA_DIR, "runs");
 const safe = (id: string) => id.replace(/[^a-z0-9._-]/gi, "");
 
 export function runId(bundle: EvidenceBundle): string {
-  return `${(bundle.target.domain ?? bundle.brand).replace(/[^a-z0-9.-]/gi, "_")}-${bundle.generatedAt.replace(/[-:T]/g, "").slice(0, 12)}`;
+  return `${(bundle.target.domain ?? bundle.brand).replace(/[^a-z0-9.-]/gi, "_")}-${bundle.generatedAt.replace(/[-:T]/g, "").slice(0, 12)}-${randomUUID().slice(0, 8)}`;
 }
 
 export async function saveRun(bundle: EvidenceBundle): Promise<{ id: string; path: string }> {

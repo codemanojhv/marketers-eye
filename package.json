@@ -23,13 +23,13 @@
     "web-dist"
   ],
   "engines": {
-    "node": ">=22"
+    "node": ">=22.13.0"
   },
   "scripts": {
     "build": "npm run build:web && tsc -p tsconfig.build.json",
     "dev": "npm run build:web && tsx src/cli.ts",
     "typecheck": "tsc --noEmit && tsc -p web/tsconfig.json",
-    "test": "vitest run",
+    "test": "vitest run --root .",
     "eval": "tsx evals/run.ts",
     "prepublishOnly": "npm run typecheck && npm test && npm run build",
     "build:web": "vite build"
