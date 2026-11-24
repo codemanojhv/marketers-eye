@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { addMcpDraft, sharedSummary } from "./workspace-mcp.js";
 import { synthesize } from "./analyze/synthesize.js";
 import { loadHarness, playbook } from "./harness.js";
 import { AREAS, analyzeMarketing, VERSION, type EvidenceBundle } from "./index.js";
@@ -20,6 +21,17 @@ const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] });
 
 export function createServer(): McpServer {
   const server = new McpServer({ name: "marketers-eye", version: VERSION });
+
+  server.registerTool("get_workspace_summary", {
+    title: "Read an approved workspace snapshot",
+    description: "Read the exact profile and public evidence snapshot approved in the dashboard. Requires a 24-hour share token.",
+    inputSchema: { share_token: z.string() },
+  }, async ({ share_token }) => text(JSON.stringify(sharedSummary(share_token))));
+  server.registerTool("draft_workspace_change", {
+    title: "Draft an insight or experiment",
+    description: "Create a draft for the workspace owner to review in the dashboard. No insight or experiment is changed until the owner accepts it.",
+    inputSchema: { share_token: z.string(), kind: z.enum(["insight", "experiment"]), data: z.record(z.string(), z.unknown()) },
+  }, async ({ share_token, kind, data }) => text(JSON.stringify({ draftId: addMcpDraft(share_token, { kind, data }), status: "pending review" })));
 
   server.registerTool(
     "analyze_marketing",

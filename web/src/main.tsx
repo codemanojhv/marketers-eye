@@ -1,7 +1,12 @@
 import { createRoot } from "react-dom/client";
+import { marked } from "marked";
+import DOMPurify from "dompurify";
 import { Dashboard, type DashboardBundle } from "./dashboard.js";
 import { WorkspaceApp } from "./workspace.js";
 import "./index.css";
+
+Object.assign(window, { marked, DOMPurify });
+window.dispatchEvent(new Event("marketers-eye-renderer-ready"));
 
 declare global {
   interface Window {

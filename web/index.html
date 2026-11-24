@@ -13,8 +13,6 @@ try {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
 <style>@layer theme, base, legacy, components, utilities;</style>
 <style>
 @layer legacy {
@@ -882,6 +880,10 @@ $("#score").addEventListener("click", e => {
 
 let renderQueued = false;
 function renderReport(streaming) {
+  if (!window.marked || !window.DOMPurify) {
+    window.addEventListener("marketers-eye-renderer-ready", () => renderReport(streaming), { once: true });
+    return;
+  }
   if (renderQueued) return;
   renderQueued = true;
   requestAnimationFrame(() => {

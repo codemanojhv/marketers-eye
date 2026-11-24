@@ -24,6 +24,26 @@ Choose **Workspaces** in the dashboard to save a brand profile, attach existing 
 
 Workspace records are stored in `~/.local/share/marketers-eye/workspace.sqlite`. Set `MARKETERS_EYE_DATA_DIR` before starting the app to choose another directory. Back up the database file to keep these records.
 
+The **Decision desk** brings together attached research, evidence-linked insights, campaign performance, reviewed feedback, experiments, and case-study export. Insights distinguish an observation from its interpretation and link to saved scan evidence. Public channel labels are research signals and do not establish competitor revenue or campaign performance.
+
+### Campaign CSVs
+
+In **Performance**, choose a CSV, name its source, select weekly or monthly reporting, and preview the column mapping before saving. Dates use `YYYY-MM-DD`; monthly dates start on the first day of the month. Supported columns are `date, channel, campaign, spend, impressions, clicks, visits, leads, purchases, revenue, currency`. Monetary values require a three-letter currency, supplied in the file or as the import default. Values are nonnegative and count fields are whole numbers.
+
+The app stores the original file and can download or remove an import. Exact reimports do not add rows. Overlapping periods for the same source, channel, campaign, and currency are rejected. The performance view groups compatible records and calculates CTR from total clicks and impressions; missing values prevent an incomplete total from being presented as complete.
+
+### Google Analytics and Search Console
+
+The **Google** tab supports session-only, read-only authorization for GA4 and Search Console. Create a Google Cloud project, configure its OAuth consent screen and a Desktop OAuth client, and enable the Analytics Admin and Data APIs for GA4 or the Search Console API for Search Console. Add your Google account as a test user if your OAuth consent screen is in testing. Enter the client ID and, when supplied, the client secret in the app, authorize in the browser, then check the connection and select a property.
+
+Access and refresh tokens stay in the local server's memory and are cleared when it restarts. A fetched report snapshot is stored in the workspace database. Disconnect attempts to revoke the Google token and offers the option to remove saved snapshots. Google may limit or omit Search Console data. GA4 and Search Console figures stay separate from uploaded campaign records.
+
+### Feedback, exports and assistant access
+
+In **Feedback**, edit excerpts to remove identifying details before saving, add a source and theme, and review counts for the saved sample. In **Export**, preview a case study and download Markdown or use the browser's print dialog to save a PDF.
+
+The **AI assistant** tab lets you review a workspace profile and public evidence snapshot, then generate a 24-hour token for the local MCP server. Campaign data, feedback, Google reports, and provider keys are excluded from that snapshot. The assistant can call `get_workspace_summary` and `draft_workspace_change`; review and accept or discard its drafts in the dashboard. Active shares can be revoked there.
+
 ## Model providers
 
 Add one or more keys to the local, ignored .env file, then restart the app:

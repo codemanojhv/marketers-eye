@@ -30,10 +30,11 @@ export const experimentSchema = z.object({
   startDate: text.default(""), endDate: text.default(""), reviewDate: text.default(""),
   budget: text.default(""), status: z.enum(["planned", "running", "paused", "complete"]).default("planned"),
   result: text.default(""), learning: text.default(""), evidence: text.default(""),
+  decision: text.default(""), comparisonType: text.default(""),
 });
 
 let database: DatabaseSync | undefined;
-function db(): DatabaseSync {
+export function db(): DatabaseSync {
   if (database) return database;
   const dir = process.env.MARKETERS_EYE_DATA_DIR || join(homedir(), ".local", "share", "marketers-eye");
   mkdirSync(dir, { recursive: true });
@@ -53,6 +54,44 @@ function db(): DatabaseSync {
     CREATE TABLE IF NOT EXISTS experiments (
       id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES workspaces(id),
       data TEXT NOT NULL, revision INTEGER NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS experiment_history (
+      experiment_id TEXT NOT NULL REFERENCES experiments(id), revision INTEGER NOT NULL,
+      data TEXT NOT NULL, changed_at TEXT NOT NULL, PRIMARY KEY (experiment_id, revision)
+    );
+    CREATE TABLE IF NOT EXISTS imports (
+      id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+      source TEXT NOT NULL, grain TEXT NOT NULL, attribution TEXT NOT NULL,
+      hash TEXT NOT NULL, original TEXT NOT NULL, mapping TEXT NOT NULL,
+      created_at TEXT NOT NULL, UNIQUE(workspace_id, hash)
+    );
+    CREATE TABLE IF NOT EXISTS measurements (
+      import_id TEXT NOT NULL REFERENCES imports(id) ON DELETE CASCADE,
+      workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+      row_number INTEGER NOT NULL, period TEXT NOT NULL, channel TEXT NOT NULL,
+      campaign TEXT NOT NULL, currency TEXT NOT NULL, data TEXT NOT NULL,
+      PRIMARY KEY (import_id, row_number)
+    );
+    CREATE TABLE IF NOT EXISTS feedback (
+      id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+      excerpt TEXT NOT NULL, source TEXT NOT NULL, theme TEXT NOT NULL, created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS insights (
+      id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+      data TEXT NOT NULL, revision INTEGER NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS google_reports (
+      workspace_id TEXT NOT NULL REFERENCES workspaces(id), product TEXT NOT NULL,
+      property TEXT NOT NULL, report TEXT NOT NULL, updated_at TEXT NOT NULL,
+      PRIMARY KEY (workspace_id, product, property)
+    );
+    CREATE TABLE IF NOT EXISTS mcp_shares (
+      id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+      token_hash TEXT NOT NULL UNIQUE, snapshot TEXT NOT NULL, expires_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS mcp_drafts (
+      id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+      kind TEXT NOT NULL, data TEXT NOT NULL, created_at TEXT NOT NULL
     );
   `);
   return database;
@@ -89,7 +128,7 @@ export function attachScan(workspaceId: string, runId: string, bundle: EvidenceB
 }
 export function listWorkspaceScans(workspaceId: string) {
   return db().prepare("SELECT run_id, bundle, attached_at FROM workspace_scans WHERE workspace_id = ? ORDER BY attached_at DESC")
-    .all(workspaceId).map(row => ({ ...row, bundle: JSON.parse(String(row.bundle)) }));
+    .all(workspaceId).map(row => ({ run_id: String(row.run_id), attached_at: String(row.attached_at), bundle: JSON.parse(String(row.bundle)) as EvidenceBundle }));
 }
 export function listExperiments(workspaceId: string) {
   return db().prepare("SELECT * FROM experiments WHERE workspace_id = ? ORDER BY updated_at DESC").all(workspaceId)
@@ -99,8 +138,14 @@ export function createExperiment(workspaceId: string, input: unknown) {
   const data = experimentSchema.parse(input);
   if (data.status !== "planned") throw new Error("New experiments must begin as planned.");
   const id = randomUUID();
-  db().prepare("INSERT INTO experiments VALUES (?, ?, ?, 1, ?)")
-    .run(id, workspaceId, JSON.stringify(data), new Date().toISOString());
+  const database = db();
+  const now = new Date().toISOString();
+  database.exec("SAVEPOINT create_experiment");
+  try {
+    database.prepare("INSERT INTO experiments VALUES (?, ?, ?, 1, ?)").run(id, workspaceId, JSON.stringify(data), now);
+    database.prepare("INSERT INTO experiment_history VALUES (?, 1, ?, ?)").run(id, JSON.stringify(data), now);
+    database.exec("RELEASE create_experiment");
+  } catch (error) { database.exec("ROLLBACK TO create_experiment"); database.exec("RELEASE create_experiment"); throw error; }
   return id;
 }
 export function updateExperiment(workspaceId: string, id: string, revision: number, input: unknown) {
@@ -113,7 +158,15 @@ export function updateExperiment(workspaceId: string, id: string, revision: numb
   if (data.status === "running" && (!data.treatment || !data.owner || !data.metric || !data.startDate || !data.reviewDate))
     throw new Error("Running experiments need a treatment, owner, metric, start date and review date.");
   if (data.status === "complete" && (!data.result || !data.learning)) throw new Error("Complete experiments need a result and learning.");
-  const result = db().prepare("UPDATE experiments SET data = ?, revision = revision + 1, updated_at = ? WHERE workspace_id = ? AND id = ? AND revision = ?")
-    .run(JSON.stringify(data), new Date().toISOString(), workspaceId, id, revision);
-  if (!result.changes) throw new Error("Experiment changed. Refresh before saving.");
+  const database = db();
+  const now = new Date().toISOString();
+  database.exec("SAVEPOINT update_experiment");
+  try {
+    database.prepare("INSERT OR IGNORE INTO experiment_history VALUES (?, ?, ?, ?)").run(id, revision, String(row.data), now);
+    const result = database.prepare("UPDATE experiments SET data = ?, revision = revision + 1, updated_at = ? WHERE workspace_id = ? AND id = ? AND revision = ?")
+      .run(JSON.stringify(data), now, workspaceId, id, revision);
+    if (!result.changes) throw new Error("Experiment changed. Refresh before saving.");
+    database.prepare("INSERT INTO experiment_history VALUES (?, ?, ?, ?)").run(id, revision + 1, JSON.stringify(data), now);
+    database.exec("RELEASE update_experiment");
+  } catch (error) { database.exec("ROLLBACK TO update_experiment"); database.exec("RELEASE update_experiment"); throw error; }
 }

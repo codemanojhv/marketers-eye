@@ -12,6 +12,10 @@ import { validateReport } from "../report/validate.js";
 import { listRuns, loadReport, loadRun, saveReport, saveRun } from "../runs.js";
 import { PAGE, WEB_ASSET_DIR } from "./page.js";
 import { attachScan, createExperiment, createWorkspace, getWorkspace, listExperiments, listWorkspaceScans, listWorkspaces, updateExperiment, updateWorkspace } from "../workspaces.js";
+import { commitImport, deleteImport, getImport, listImports, measurements, previewImport } from "../measurements.js";
+import { addFeedback, exportCaseStudy, listFeedback, listInsights, removeFeedback, saveInsight } from "../decisions.js";
+import { deleteGoogleReports, disconnectGoogle, finishGoogle, googleProperties, googleReport, googleReports, googleStatus, startGoogle } from "../google.js";
+import { acceptMcpDraft, createShare, listMcpDrafts, listShares, removeMcpDraft, revokeShare, sharePreview } from "../workspace-mcp.js";
 
 type Event = { type: string; [k: string]: unknown };
 
@@ -103,11 +107,11 @@ function json(res: ServerResponse, status: number, data: unknown): void {
   res.end(JSON.stringify(data));
 }
 
-async function readBody(req: IncomingMessage): Promise<any> {
+async function readBody(req: IncomingMessage, limit = 1_000_000): Promise<any> {
   let raw = "";
   for await (const chunk of req) {
     raw += chunk;
-    if (raw.length > 1_000_000) throw new Error("body too large");
+    if (raw.length > limit) throw new Error("body too large");
   }
   return raw ? JSON.parse(raw) : {};
 }
@@ -123,6 +127,83 @@ export function startWeb(port: number): Promise<string> {
 
       const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
       const path = url.pathname;
+
+      const mcpWorkspace = path.match(/^\/api\/workspaces\/([a-f0-9-]+)\/mcp\/(preview|shares|drafts)(?:\/([a-f0-9-]+))?$/);
+      if (mcpWorkspace && mcpWorkspace[1] && mcpWorkspace[2]) {
+        const [, id, action, item] = mcpWorkspace;
+        if (!getWorkspace(id!)) return json(res, 404, { error: "Workspace not found" });
+        if (action === "preview" && req.method === "GET") return json(res, 200, sharePreview(id!));
+        if (action === "shares" && !item && req.method === "GET") return json(res, 200, listShares(id!));
+        if (action === "shares" && !item && req.method === "POST") {
+          const body = await readBody(req);
+          return json(res, 201, createShare(id!, body.hash));
+        }
+        if (action === "shares" && item && req.method === "DELETE") return json(res, 200, { deleted: revokeShare(id!, item) });
+        if (action === "drafts" && !item && req.method === "GET") return json(res, 200, listMcpDrafts(id!));
+        if (action === "drafts" && item && req.method === "DELETE") return json(res, 200, { deleted: removeMcpDraft(id!, item) });
+        if (action === "drafts" && item && req.method === "POST") return json(res, 200, { id: acceptMcpDraft(id!, item, await readBody(req)) });
+      }
+
+      if (req.method === "GET" && path === "/api/google/callback") {
+        try {
+          await finishGoogle(url.searchParams.get("state") || "", url.searchParams.get("code") || "");
+          res.writeHead(200, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "referrer-policy": "no-referrer" });
+          return res.end("Google account connected. You can close this tab and return to Marketer's Eye.");
+        } catch {
+          res.writeHead(400, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" });
+          return res.end("Google authorization did not complete. Return to Marketer's Eye and try again.");
+        }
+      }
+      const google = path.match(/^\/api\/workspaces\/([a-f0-9-]+)\/google(?:\/(start|status|properties|report|reports|disconnect))?$/);
+      if (google && google[1] && google[2]) {
+        const id = google[1];
+        if (!getWorkspace(id)) return json(res, 404, { error: "Workspace not found" });
+        const action = google[2];
+        if (action === "start" && req.method === "POST") return json(res, 200, startGoogle(id, await readBody(req), port));
+        if (action === "status" && req.method === "GET") return json(res, 200, googleStatus(id));
+        if (action === "reports" && req.method === "GET") return json(res, 200, googleReports(id));
+        if (action === "properties" && req.method === "GET") {
+          const product = url.searchParams.get("product");
+          if (product !== "ga4" && product !== "search") return json(res, 400, { error: "Invalid Google product" });
+          return json(res, 200, await googleProperties(id, product));
+        }
+        if (action === "report" && req.method === "POST") return json(res, 200, await googleReport(id, await readBody(req)));
+        if (action === "disconnect" && req.method === "POST") {
+          const body = await readBody(req);
+          await disconnectGoogle(id, body.product);
+          if (body.deleteReports === true) deleteGoogleReports(id, body.product);
+          return json(res, 200, { ok: true });
+        }
+      }
+
+      const workspaceData = path.match(/^\/api\/workspaces\/([a-f0-9-]+)\/(imports|measurements|feedback|insights|export)(?:\/([a-z0-9-]+))?$/);
+      if (workspaceData) {
+        const [, id, section, item] = workspaceData;
+        if (!id || !getWorkspace(id)) return json(res, 404, { error: "Workspace not found" });
+        if (section === "imports" && item === "preview" && req.method === "POST") {
+          const result = previewImport(await readBody(req, 25_000_000));
+          return json(res, 200, { headers: result.headers, mapping: result.mapping, rows: result.rows.slice(0, 20), rowCount: result.rows.length, errors: result.errors.slice(0, 100) });
+        }
+        if (section === "imports" && !item && req.method === "GET") return json(res, 200, listImports(id));
+        if (section === "imports" && !item && req.method === "POST") return json(res, 201, commitImport(id, await readBody(req, 25_000_000)));
+        if (section === "imports" && item && req.method === "GET") {
+          const result = getImport(id, item);
+          if (!result) return json(res, 404, { error: "Import not found" });
+          return json(res, 200, result);
+        }
+        if (section === "imports" && item && req.method === "DELETE") return json(res, 200, { deleted: deleteImport(id, item) });
+        if (section === "measurements" && req.method === "GET") return json(res, 200, measurements(id));
+        if (section === "feedback" && !item && req.method === "GET") return json(res, 200, listFeedback(id));
+        if (section === "feedback" && !item && req.method === "POST") return json(res, 201, { id: addFeedback(id, await readBody(req)) });
+        if (section === "feedback" && item && req.method === "DELETE") return json(res, 200, { deleted: removeFeedback(id, item) });
+        if (section === "insights" && !item && req.method === "GET") return json(res, 200, listInsights(id));
+        if (section === "insights" && !item && req.method === "POST") return json(res, 201, { id: saveInsight(id, await readBody(req)) });
+        if (section === "insights" && item && req.method === "PUT") {
+          const body = await readBody(req);
+          return json(res, 200, { id: saveInsight(id, body.data, item, body.revision) });
+        }
+        if (section === "export" && req.method === "GET") return json(res, 200, { markdown: exportCaseStudy(id) });
+      }
 
       if (path === "/api/workspaces") {
         if (req.method === "GET") return json(res, 200, listWorkspaces());
@@ -161,7 +242,7 @@ export function startWeb(port: number): Promise<string> {
           "referrer-policy": "no-referrer",
           "x-frame-options": "DENY",
           // Scripts only from us + the two pinned CDNs; no framing; API calls only to ourselves.
-          "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src * data: blob:; media-src *; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+          "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src * data: blob:; media-src *; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
         });
         return res.end(PAGE);
       }
